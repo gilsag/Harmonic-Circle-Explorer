@@ -11,6 +11,7 @@
 - Excluded transient hover/selection overlays from SVG and PNG exports.
 - Added regression checks for Roman numerals and minimum-motion voice-leading examples.
 - Updated README, user guide, technical notes, and version metadata.
+- Made the standalone documentation self-contained and added an example diagram to the README.
 
 ## v0.3.0 — All diatonic chord families
 
