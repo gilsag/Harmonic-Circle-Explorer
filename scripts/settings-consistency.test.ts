@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { sequencePlaybackNotes } from "../src/audio";
+import type { RecordedEvent } from "../src/recording";
+import { EN } from "../src/i18n/en";
+import { ES } from "../src/i18n/es";
+import { FR } from "../src/i18n/fr";
+import { PT } from "../src/i18n/pt";
+import { IT } from "../src/i18n/it";
+import { DE } from "../src/i18n/de";
+
+const chord = (rootPc: number): RecordedEvent => ({kind:"chord", rootPc, familyId:"major", sectorIndex:0});
+const events = [chord(0), chord(5), chord(7)];
+const root = sequencePlaybackNotes(events,"root");
+const smooth = sequencePlaybackNotes(events,"smooth");
+assert.deepEqual(root[0],[60,64,67]);
+assert.deepEqual(root[1],[65,69,72]);
+assert.notDeepEqual(smooth[1],root[1],"Smooth playback should adjust intermediate chord octaves");
+assert.deepEqual(smooth[0],root[0],"First chord has no preceding voice leading");
+assert.deepEqual(sequencePlaybackNotes([chord(0),{kind:"note",pitchClass:4,sectorIndex:0},chord(5)],"smooth")[2],root[1],
+  "A single note interrupts a chord-to-chord movement chain");
+assert.deepEqual(sequencePlaybackNotes(events,"root"),root,"Root playback must remain deterministic");
+for (const translations of [ES,FR,PT,IT,DE]) {
+  assert.deepEqual(Object.keys(translations).sort(),Object.keys(EN).sort());
+  assert.ok(translations["nav.chordToneTooltipHelp"]);
+}
+const app=readFileSync(new URL("../src/App.tsx",import.meta.url),"utf8");
+const svg=readFileSync(new URL("../src/components/HarmonyToolDiagram.tsx",import.meta.url),"utf8");
+const css=readFileSync(new URL("../src/App.css",import.meta.url),"utf8");
+const sections=app.slice(app.indexOf('{panel === "tools" ? <>'),app.indexOf('</> : panel === "settings" ? <>'));
+assert.doesNotMatch(sections,/nav\.relationships|nav\.diagramDisplay/,"No separate Relationships block or ring display in Tools");
+assert.match(sections,/nav\.relationshipDisplay/,"Relationship display is part of harmonic context");
+const settings=app.slice(app.indexOf('panel === "settings" ? <>'),app.indexOf('nav.preferences',app.indexOf('panel === "settings" ? <>'));
+assert.match(settings,/activeTool==="circle" && <>/,"Circle-only settings must be conditional");
+assert.match(settings,/nav\.diagramDisplay/,"Rings appear under Settings");
+assert.match(settings,/app\.diameter/,"Circle diameter remains available");
+assert.match(app,/showEnharmonics=\{showEnharmonics\} showToneTooltips=\{showToneTooltips\}/);
+assert.match(app,/colorByFamily=\{colorByFamily\} fontSize=\{fontSize\}/);
+assert.match(app,/parentScaleId:pathScaleId/,"Path Finder must not depend on Harmonic Circle's scaleId");
+assert.match(app,/const importedPathScale = v.pathScaleId \?\? v.scaleId/,"Legacy settings need a scale fallback");
+assert.match(app,/setPathScaleId\("ionian"\)/,"Tool reset should restore the Path Finder's own scale");
+assert.match(app,/route.chords.map\(displayChord\)/,"Path choices must use the shared display style");
+assert.match(app,/playRecordedSequence\(currentPath\.chords\.map\(chordEvent\),playbackStyle,voicingStyle\)/);
+assert.match(app,/playVoiceLeadingTransition\(comparisonA,comparisonB\.rootPc,comparisonB\.familyId,playbackStyle,voicingStyle\)/);
+assert.match(app,/className="setting-label"/,"Help should be next to the respective field title");
+assert.match(svg,/colorByFamily\?chordFamilyColor/,"Shared family colors must affect new diagrams");
+assert.match(svg,/textScale=fontSize\/18/,"Shared font setting must affect new diagrams");
+assert.match(svg,/showToneTooltips && <title>/,"Tooltip setting must control diagram title elements");
+assert.match(css,/\.section-heading \.help-disclosure/,"Section help remains beside its title");
+console.log("settings-consistency.test.ts: scope, playback voicing, tooltip placement and localization passed");

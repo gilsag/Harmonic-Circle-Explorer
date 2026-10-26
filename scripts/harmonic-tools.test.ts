@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import { compareChords, findHarmonicPaths, transitionCost } from "../src/harmonicTools";
+import { isSubset, pitchClassesForChord, pitchClassesForScale } from "../src/music";
+const c={rootPc:0,familyId:"major" as const};
+const g={rootPc:7,familyId:"major" as const};
+const a=compareChords(c,g);
+assert.deepEqual(a.sharedPitchClasses,[7]);
+assert.equal(a.totalMotion,3);
+assert.equal(transitionCost(compareChords(c,c)),0);
+const opts={start:c,end:g,transitions:2 as const,intermediatePool:"major" as const,parentRootPc:0,parentScaleId:"ionian" as const};
+const paths=findHarmonicPaths(opts);
+assert.ok(paths.length>0);
+assert.equal(paths[0].chords.length,3);
+assert.deepEqual(paths[0].chords[0],c);
+assert.deepEqual(paths[0].chords.at(-1),g);
+assert.equal(new Set(paths[0].chords.map(ch=>`${ch.rootPc}:${ch.familyId}`)).size,3);
+assert.ok(paths.every((p,i)=>i===0||paths[i-1].score<=p.score));
+assert.deepEqual(findHarmonicPaths(opts),paths);
+for(const transitions of [3,4] as const){
+ const r=findHarmonicPaths({...opts,transitions,intermediatePool:"diatonic"});
+ assert.ok(r.length>0);
+ assert.equal(r[0].chords.length,transitions+1);
+ const parent=pitchClassesForScale(0,"ionian");
+ for(const p of r) for(const ch of p.chords.slice(1,-1)) assert.ok(isSubset(pitchClassesForChord(ch.rootPc,ch.familyId),parent));
+}
+assert.deepEqual(findHarmonicPaths({...opts,end:c}),[]);
+const unequal=compareChords(c,{rootPc:0,familyId:"major7"});
+assert.deepEqual(unequal.addedPitchClasses,[11]);
+assert.deepEqual(unequal.sharedPitchClasses,[0,4,7]);
+assert.equal(unequal.totalMotion,0);
+console.log("harmonic tools tests passed");

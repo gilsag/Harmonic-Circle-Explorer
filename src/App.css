@@ -257,3 +257,149 @@ select {
 .tooltip-row { margin-top: 3px; }
 .tooltip-label { font-weight: 800; }
 .shared-tone { color: #1746d0; font-weight: 850; }
+
+/* Compact contextual guidance without sacrificing keyboard access. */
+.help-tip {
+  width: 24px; height: 24px; display: inline-flex; align-items:center; justify-content:center;
+  border:1px solid #cbd5e7; border-radius:50%; color:#1746d0; background:#f3f6ff;
+  font-weight:800; font-size:13px; cursor:help; align-self:flex-start;
+}
+.help-tip:focus-visible {outline:2px solid #1746d0;outline-offset:2px;}
+.section-content {gap:9px;}
+label {gap:4px;}
+.button-grid button {min-width:0; overflow-wrap:anywhere; line-height:1.35;}
+.button-grid button:disabled {opacity:0.5;cursor:default;}
+.notation-preview {max-height:240px; overflow:auto; border:1px solid #e1e5ee; border-radius:10px; padding:6px;}
+.notation-preview svg {max-width:100%; height:auto;}
+.note-ring-label {font-weight:700; fill:#294c80;}
+
+/* v0.5.1: context-sensitive toolbar and compact settings. */
+.app-shell.panel-hidden { grid-template-columns: minmax(0, 1fr); }
+.app-shell.panel-hidden > .left-panel { display: none; }
+.section-content[hidden] { display: none !important; }
+.control-section { overflow: visible; }
+.section-title { border-radius: 13px 13px 0 0; text-align: left; }
+.section-content { gap: 10px; }
+.section-content label { font-size: 13px; }
+.section-content select { font-size: 13px; min-height: 35px; }
+.section-content .hint { font-size: 12px; }
+.brand-row { position: relative; }
+.mobile-close, .mobile-backdrop { display: none; }
+.help-disclosure { display: inline-block; position: relative; vertical-align: middle; margin-left: 4px; }
+.help-disclosure summary {
+  display: inline-grid; place-items: center; width: 22px; height: 22px;
+  list-style: none; border: 1px solid #c6d2ea; border-radius: 50%;
+  background: #f2f5ff; color: #1746d0; cursor: pointer; font-size: 12px;
+}
+.help-disclosure summary::-webkit-details-marker { display: none; }
+.help-disclosure summary:focus-visible { outline: 2px solid #1746d0; outline-offset: 2px; }
+.help-content {
+  position: absolute; z-index: 30; left: 0; top: calc(100% + 6px);
+  width: min(260px, 75vw); box-sizing: border-box; padding: 10px 12px;
+  border: 1px solid #c6d2ea; border-radius: 9px; background: white;
+  box-shadow: 0 8px 24px #19264630; font-size: 12px; line-height: 1.45;
+  font-weight: 450; color: #26344c;
+}
+.topbar { flex-direction: column; align-items: stretch; gap: 0; padding: 5px 12px 7px; min-height: 0; }
+.tool-nav { display: flex; gap: 8px; align-items: center; min-height: 28px; }
+.active-tool {
+  padding: 5px 11px; border-bottom: 2px solid #1746d0;
+  font-size: 13px; font-weight: 800; color: #173eaf;
+}
+.topbar-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 38px; }
+.toolbar-button, .mobile-close {
+  border: 1px solid #c9d1e3; background: white; color: #172033;
+  border-radius: 9px; padding: 7px 10px; font-weight: 700; font-size: 12px;
+  cursor: pointer; min-height: 34px;
+}
+.toolbar-button[aria-pressed="true"] { border-color: #1746d0; background: #eaf0ff; color: #1746d0; }
+.toolbar-button.is-recording { border-color: #bd2c2c; background: #fff0f0; color: #9c2121; }
+.toolbar-button:focus-visible, .download-button:focus-visible, .mobile-close:focus-visible {
+  outline: 2px solid #1746d0; outline-offset: 2px;
+}
+.topbar-divider { flex: 1 1 8px; min-width: 6px; }
+.record-count { font-size: 12px; color: #657087; white-space: nowrap; }
+.reset-container { position: relative; }
+.reset-options {
+  position: absolute; z-index: 20; right: 0; top: calc(100% + 5px);
+  display: flex; flex-direction: column; min-width: 220px; background: white;
+  border: 1px solid #cbd4e5; border-radius: 10px; box-shadow: 0 6px 22px #202e4830;
+  padding: 5px;
+}
+.reset-options button { text-align: left; border: 0; background: none; font-size: 12px; padding: 10px 9px; border-radius: 6px; cursor: pointer; }
+.reset-options button:hover:not(:disabled) { background: #eff3ff; }
+.reset-options button:disabled { opacity: .45; cursor: default; }
+.diagram-context {
+  padding: 7px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  color: #27344a; font-size: 12px; background: #f4f6fb; border-bottom: 1px solid #e0e5f0;
+}
+@media (max-width: 850px) {
+  .app-shell { grid-template-columns: 272px minmax(0, 1fr); }
+  .summary-detail { display: inline; }
+}
+@media (max-width: 680px) {
+  .app-shell, .app-shell.panel-hidden {
+    display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  }
+  .workspace { order: 0; flex: 1; min-height: 0; }
+  .topbar { position: relative; z-index: 5; padding: 5px 8px; }
+  .topbar-controls { gap: 5px; }
+  .toolbar-button, .download-button { padding: 7px 8px; }
+  .left-panel, .app-shell.panel-hidden > .left-panel {
+    display: block; position: fixed; z-index: 16; inset: 0 auto 0 0;
+    width: min(330px, 88vw); box-sizing: border-box; height: 100dvh;
+    transform: translateX(-105%); transition: transform .15s ease;
+    box-shadow: 4px 0 22px #1720332c; border: 0;
+  }
+  .app-shell.panel-open .left-panel { transform: translateX(0); }
+  .mobile-close { display: block; position: absolute; top: 0; right: 0; }
+  .app-shell.panel-open .mobile-backdrop {
+    display: block; position: fixed; z-index: 15; inset: 0;
+    border: none; background: #151b3088; cursor: pointer;
+  }
+  .canvas-wrap { min-height: 0; }
+  .help-content { max-width: 70vw; }
+}
+
+/* Harmonic analysis tools share the upper navigation and existing settings panel. */
+.tool-nav { flex-wrap: wrap; }
+.tool-tab { padding: 5px 11px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: #526078; cursor: pointer; font-size: 13px; font-weight: 700; }
+.active-tool { background: #edf3ff; border-radius: 6px 6px 0 0; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; }
+.tool-tab:hover { background: #f3f6ff; color: #1746d0; }
+.tool-tab:focus-visible, .active-tool:focus-visible, .route:focus-visible, .analysis-chord:focus-visible {
+  outline: 2px solid #1746d0; outline-offset: 2px; }
+.chord-selector { border: 1px solid #d9deea; border-radius: 10px; padding: 8px; margin: 0;
+  display: grid; gap: 7px; min-width: 0; }
+.chord-selector legend { color: #253c5c; font-size: 13px; font-weight: 800; padding: 0 4px; }
+.chord-selector select { min-width: 0; }
+.route-list { display: grid; gap: 6px; max-height: 310px; overflow-y: auto; }
+.route { background: #fff; color: #25344e; border: 1px solid #cbd5e5; border-radius: 10px; padding: 9px;
+  font-size: 12px; text-align: left; cursor: pointer; overflow-wrap: anywhere; display: grid; gap: 3px; }
+.route.active { background: #eaf0ff; border-color: #1746d0; }
+.route small { color: #64748b; font-size: 11px; }
+.analysis-line { margin: 0; color: #293952; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.analysis-chord { cursor: pointer; }
+.analysis-chord:focus-visible rect { stroke-width: 4; }
+.tool-diagram { max-width: 100%; }
+@media (max-width:680px) {
+  .tool-nav { gap: 3px; }
+  .tool-tab, .active-tool { font-size: 11px; padding: 5px 7px; }
+}
+
+/* Keep disclosure help aligned with the setting or section it describes. */
+.section-heading { display: flex; align-items: center; background: #f5f7fb; border-radius: 13px 13px 0 0; }
+.section-heading .section-title { min-width: 0; flex: 1; border-radius: 13px 0 0 0; }
+.section-heading .help-disclosure { flex: none; margin: 0 9px 0 1px; }
+.setting-label { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 13px; font-weight: 750; }
+.setting-label span { min-width: 0; overflow-wrap: anywhere; }
+.setting-label .help-disclosure { margin-left: 1px; flex: none; }
+.control-field { display: flex; flex-direction: column; gap: 5px; }
+.control-field select { width: 100%; }
+.check-field { display: flex; align-items: flex-start; gap: 6px; }
+.check-field .check-row { flex: 1; min-width: 0; }
+.check-field .help-disclosure { margin-left: 0; flex: none; }
+/* Right-align popovers so long translations do not extend past the sidebar edge. */
+.section-heading .help-content, .setting-label .help-content, .check-field .help-content {
+  left: auto; right: 0; max-width: min(250px, 72vw);
+}

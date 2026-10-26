@@ -1,5 +1,44 @@
 # Version History
 
+## v0.6.1 — Shared settings and playback consistency
+
+- Merged Relationship display into Harmonic context and moved Diagram and rings into circle-only Settings. Help buttons now appear beside their related titles or labels.
+- Applied shared typography, chord-symbol spelling, chord-tone tooltip and family-color settings to Harmonic Path Finder and Chord Comparison. Circle-only geometry controls no longer appear for other tools.
+- Made Path Finder and Chord Comparison follow the chosen root-position or smooth voice-leading playback mode. The pitch-class algorithms and nominal notation remain unchanged.
+- Preserved settings JSON schema compatibility, recording, shared preferences, and independent circle/path parent scales; added focused regression tests.
+
+
+## v0.6.0 — Harmonic Path Finder and Chord Comparison
+
+- Added two selectable tools to the existing upper toolbar, retaining the Harmonic Circle behavior and independent tool settings.
+- Added bounded harmonic-path search between chosen chords, with fixed transition counts, configurable intermediate chord families or fixed-tonic diatonic candidates, deterministic ranking, auditioning and recording integration.
+- Added dedicated chord comparison with common pitch classes, minimal pitch-class movement, extra/removed tones, auditioning and exportable SVG visualization.
+- Added localized controls in all six languages, backwards-compatible settings fields, regression tests, and user/developer documentation.
+- Preserved existing pitch-class harmonic calculations, standalone synthesis and recording/export services.
+
+
+
+## v0.5.1 — Toolbar and contextual sidebar
+
+- Added a tool-oriented upper toolbar with Tools, Settings, Focus, persistent recording status/actions, Reset options, and diagram export.
+- Organized harmonic context, relationship filters, ring visibility, appearance, playback, and preferences in contextual sidebar views.
+- Consolidated diatonic choices into one relationship-display control; preserved the All families restriction and existing configuration JSON fields.
+- Added a mobile overlay for sidebar controls, accessible disclosure states, and contextual help.
+- Separated restoration of tool defaults from clearing recordings; recording deletion requires confirmation.
+- Updated all six language catalogs and interface documentation. Harmonic calculations, synthesis and exports remain unchanged.
+
+
+
+## v0.5.0 — Inner note ring, recording, and localization
+
+- Added a default-visible twelve-note inner ring with individual synthesizer playback. Legend and explanations track ring visibility.
+- Added chord/note sequence recording, playback, ABC staff preview, and ABC/SVG notation downloads.
+- Added English, Spanish, French, Brazilian Portuguese, Italian and German interface catalogs with browser detection and English fallback.
+- Added compact, letter-based and word-based chord-label styles without changing harmonic results.
+- Added versioned settings JSON import/export and preserved the selected interface language locally.
+- Improved legend wrapping and compact contextual controls while retaining the existing harmonic-analysis and chord audio engine.
+
+
 ## v0.4.0 — Interactive harmonic comparison and voice leading
 
 - Replaced plain browser chord tooltips with rich tooltips showing family, chord tones, highlighted common tones, Roman numeral, and diatonic status.

@@ -1,3 +1,8 @@
+import type { ChordDisplayStyle } from "../display";
+import { formatChord } from "../display";
+import { familyName, scaleName } from "../i18n/musicTerms";
+import { translate, type InterfaceLanguage } from "../i18n/catalog";
+import { wrapLegendText } from "../legendTextLayout";
 import { useEffect, useState } from "react";
 import type { Ref, MouseEvent as ReactMouseEvent } from "react";
 import type { PlaybackStyle, VoicingStyle } from "../audio";
@@ -7,7 +12,6 @@ import {
   analyzeVoiceLeading,
   chordFamily,
   chordFamilyColor,
-  chordLabel,
   chordPitchNames,
   isSubset,
   pitchClassesForScale,
@@ -21,6 +25,11 @@ type HarmonicCircleProps = {
   counts: number[];
   referenceFamilyId: ChordFamilyId;
   relatedFamilyName: string;
+  language: InterfaceLanguage;
+  chordDisplayStyle: ChordDisplayStyle;
+  showNoteRing: boolean;
+  onPlayNote?: (pc:number,sectorIndex:number)=>void;
+  onChordActivated?: (rootPc:number,familyId:ChordFamilyId,sectorIndex:number)=>void;
   allFamiliesMode: boolean;
   scaleId: ScaleId;
   diatonicOnly: boolean;
@@ -77,16 +86,6 @@ function polar(cx: number, cy: number, radius: number, angleDegrees: number) {
     x: cx + radius * Math.cos(angle),
     y: cy + radius * Math.sin(angle),
   };
-}
-
-function ordinal(value: number) {
-  const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
-  const mod10 = value % 10;
-  if (mod10 === 1) return `${value}st`;
-  if (mod10 === 2) return `${value}nd`;
-  if (mod10 === 3) return `${value}rd`;
-  return `${value}th`;
 }
 
 function fittedFontSize(
@@ -189,25 +188,6 @@ function fittedSingleLineFontSize(requested: number, width: number, text: string
   return Math.max(9.5, Math.min(requested, estimated));
 }
 
-function wrapText(text: string, width: number, fontSize: number) {
-  const maxChars = Math.max(18, Math.floor(width / Math.max(5, fontSize * 0.54)));
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  words.forEach((word) => {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length <= maxChars || current.length === 0) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = word;
-    }
-  });
-  if (current) lines.push(current);
-  return lines;
-}
-
 function maxCandidatesForCount(sectors: readonly SectorRelationships[], count: number) {
   return Math.max(0, ...sectors.map((sector) => sector.bySharedCount.get(count)?.length ?? 0));
 }
@@ -226,9 +206,10 @@ function voiceLeadingText(
   referencePitches: readonly number[],
   targetPitches: readonly number[],
   sectorIndex: number,
+  language: InterfaceLanguage,
 ) {
   const analysis = analyzeVoiceLeading(referencePitches, targetPitches);
-  const parts = [`${analysis.totalMotion} semitone${analysis.totalMotion === 1 ? "" : "s"} motion`];
+  const parts = [translate(language,"app.motionUnit",{count:analysis.totalMotion})];
   if (analysis.addedPitchClasses.length > 0) {
     parts.push(`+${analysis.addedPitchClasses.map((pc) => pitchName(pc, sectorIndex, false)).join("/")}`);
   }
@@ -253,6 +234,11 @@ export function HarmonicCircle({
   counts,
   referenceFamilyId,
   relatedFamilyName,
+  language,
+  chordDisplayStyle,
+  showNoteRing,
+  onPlayNote,
+  onChordActivated,
   allFamiliesMode,
   scaleId,
   diatonicOnly,
@@ -270,6 +256,8 @@ export function HarmonicCircle({
   voicingStyle,
   svgRef,
 }: HarmonicCircleProps) {
+  const t=(key:Parameters<typeof translate>[1],args?:Record<string,string|number>)=>translate(language,key,args);
+  const labelFor=(pc:number,id:ChordFamilyId,sector:number)=>formatChord(pc,id,sector,showEnharmonics,chordDisplayStyle,language);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [selected, setSelected] = useState<SelectedComparison | null>(null);
   useEffect(() => {
@@ -282,21 +270,40 @@ export function HarmonicCircle({
   const hasRightColumn = showLegend || showExplanation;
   const referenceFamily = chordFamily(referenceFamilyId);
   const scale = scaleDefinition(scaleId);
+  const referenceName=familyName(referenceFamilyId,referenceFamily.name,language);
+  const scaleLabel=scaleName(scaleId,scale.name,language);
   const strokeWidth = Math.max(1.3, diameter / 520);
 
-  const legendFont = Math.max(11, fontSize);
-  const legendNoteFont = Math.max(10, fontSize * 0.73);
-  const legendRowHeight = Math.max(54, legendFont * 2.35);
-  const legendNoteLineHeight = Math.max(14, legendNoteFont * 1.35);
-  const legendContentX = Math.max(142, rightColumnWidth * 0.36);
-  const legendNotes = 1 + (highlightDiatonic && !diatonicOnly ? 1 : 0) + (colorByFamily ? 1 : 0);
-  const legendLastRowY = 45 + counts.length * legendRowHeight;
-  const legendNoteY = legendLastRowY + legendRowHeight * 0.78;
-  const legendBoxHeight = legendNoteY + legendNotes * legendNoteLineHeight + 22;
+  const legendFont = Math.max(11,fontSize);
+  const legendNoteFont=Math.max(10,fontSize*0.73);
+  const legendNoteLineHeight=Math.max(14,legendNoteFont*1.35);
+  const legendContentX=Math.max(150,rightColumnWidth*0.40);
+  const legendValueWidth=rightColumnWidth-legendContentX-22;
+  type LegendRow={ heading:string; values:string[]; y:number; height:number };
+  const rowSpecs:[string,string[]][]=[];
+  if(showNoteRing) rowSpecs.push([t("app.noteRing"),[t("app.notesDetail")]]);
+  rowSpecs.push([t("app.chordRing"),[referenceName]]);
+  counts.forEach((count,index)=>rowSpecs.push([
+    t("app.ringOrdinal",{count:index+(showNoteRing?3:2)}),
+    [allFamiliesMode?t("app.diatonicRelated"):(diatonicOnly?t("ui.diatonicFamily",{family:relatedFamilyName.toLowerCase()}):relatedFamilyName),
+    t("app.sharing",{count,unit:count===1?t("ui.oneNote"):t("ui.manyNotes")})],
+  ]));
+  let rowY=50;
+  const legendRows:LegendRow[]=rowSpecs.map(([heading,values])=>{
+    const wrapped=values.flatMap(value=>wrapLegendText(value,legendValueWidth,legendFont));
+    const height=Math.max(42,wrapped.length*legendFont*1.21+13);
+    const row={heading,values:wrapped,y:rowY,height};rowY+=height;return row;
+  });
+  const legendNotesContent=[t("app.parent",{scale:scaleLabel})];
+  if(highlightDiatonic&&!diatonicOnly) legendNotesContent.push(t(colorByFamily?"app.bold":"app.blue"));
+  if(colorByFamily) legendNotesContent.push(t("app.colors"));
+  const legendNotes=legendNotesContent.flatMap(note=>wrapLegendText(note,rightColumnWidth-48,legendNoteFont));
+  const legendNotesY=rowY+8;
+  const legendBoxHeight=legendNotesY+legendNotes.length*legendNoteLineHeight+23;
 
   const explanationFont = Math.max(11, fontSize * 0.78);
   const explanationLineHeight = explanationFont * 1.35;
-  const explanationLines = wrapText(explanation, rightColumnWidth - 48, explanationFont);
+  const explanationLines = wrapLegendText(explanation, rightColumnWidth - 48, explanationFont);
   const explanationBoxHeight = 58 + explanationLines.length * explanationLineHeight + 18;
   const stackGap = showLegend && showExplanation ? 18 : 0;
   const rightStackHeight =
@@ -309,7 +316,11 @@ export function HarmonicCircle({
   const cx = margin + diameter / 2;
   const cy = canvasHeight / 2;
   const outerRadius = diameter / 2 - 10;
-  const holeRadius = outerRadius * 0.27;
+  // Reserve an explicit inner annulus for the twelve individual pitch classes.
+  const holeRadius = outerRadius * (showNoteRing ? 0.34 : 0.27);
+  const centerHoleRadius=showNoteRing ? holeRadius*0.56 : holeRadius;
+  const noteRingRadius=(holeRadius+centerHoleRadius)/2;
+  const noteRingWidth=holeRadius-centerHoleRadius;
 
   // Single-family diagrams retain equal-width bands. Aggregate diagrams use
   // wider bands for the relationship classes with the densest sector lists.
@@ -356,12 +367,12 @@ export function HarmonicCircle({
       x,
       y,
       label,
-      familyName: chordFamily(candidate.familyId).name,
+      familyName: familyName(candidate.familyId,chordFamily(candidate.familyId).name,language),
       tones: toneNames,
       sharedNames,
       romanNumeral: romanNumeralForChord(candidate.rootPc, candidate.familyId, sector.referenceRootPc, scaleId),
       diatonic: candidate.diatonic,
-      voiceLeadingText: voiceLeadingText(sector.referencePitches, candidate.pitchClasses, sectorIndex),
+      voiceLeadingText: voiceLeadingText(sector.referencePitches, candidate.pitchClasses, sectorIndex,language),
     });
   };
 
@@ -374,6 +385,7 @@ export function HarmonicCircle({
   ) => {
     event.stopPropagation();
     setSelected({ sectorIndex, sharedCount, candidate });
+    onChordActivated?.(candidate.rootPc,candidate.familyId,sectorIndex);
     const reference = { rootPc: sector.referenceRootPc, familyId: referenceFamilyId };
     if (voicingStyle === "smooth") {
       playVoiceLeadingTransition(reference, candidate.rootPc, candidate.familyId, playbackStyle);
@@ -387,7 +399,7 @@ export function HarmonicCircle({
       ref={svgRef}
       className="harmonic-diagram"
       viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
-      aria-label="Harmonic relationship circle"
+      aria-label={t("ui.harmonicCircleAria")}
       onClick={() => setSelected(null)}
     >
       <rect x="0" y="0" width={canvasWidth} height={canvasHeight} fill="#ffffff" />
@@ -405,10 +417,11 @@ export function HarmonicCircle({
           />
         ))}
 
+        {showNoteRing && <circle cx={cx} cy={cy} r={centerHoleRadius} fill="none" stroke="#16191f" strokeWidth={strokeWidth}/>}
         {showSeparators &&
           Array.from({ length: 12 }, (_unused, index) => {
             const angle = -105 + index * 30;
-            const inner = polar(cx, cy, holeRadius, angle);
+            const inner = polar(cx, cy, showNoteRing?centerHoleRadius:holeRadius, angle);
             const outer = polar(cx, cy, outerRadius, angle);
             return (
               <line
@@ -424,16 +437,26 @@ export function HarmonicCircle({
           })}
       </g>
 
+      {showNoteRing && (
+        <g className="note-ring" aria-label={t("app.noteRing")}>
+          {sectors.map((sector,index)=>{
+            const position=polar(cx,cy,noteRingRadius,-90+index*30);
+            const name=pitchName(sector.referenceRootPc,index,showEnharmonics);
+            return <text key={`note-${sector.referenceRootPc}`} className="chord-label note-ring-label"
+              x={position.x} y={position.y} textAnchor="middle" dominantBaseline="middle"
+              fontSize={Math.max(8,Math.min(fontSize*0.8,noteRingWidth*0.42))}
+              role="button" tabIndex={0} aria-label={`${t("app.noteRingAria")}: ${name}`}
+              onClick={(event)=>{event.stopPropagation();onPlayNote?.(sector.referenceRootPc,index);}}
+              onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onPlayNote?.(sector.referenceRootPc,index);}}}
+            ><title>{name}</title>{name}</text>;
+          })}
+        </g>
+      )}
       <g className="reference-ring">
         {sectors.map((sector, sectorIndex) => {
           const angle = -90 + sectorIndex * 30;
           const position = polar(cx, cy, referenceRadius, angle);
-          const label = chordLabel(
-            sector.referenceRootPc,
-            referenceFamilyId,
-            sectorIndex,
-            showEnharmonics,
-          );
+          const label = labelFor(sector.referenceRootPc,referenceFamilyId,sectorIndex);
           const toneNames = chordPitchNames(sector.referenceRootPc, referenceFamilyId, sectorIndex);
           const referenceFont = fittedFontSize(fontSize * 1.12, referenceBandWidth, referenceRadius, [label]);
           const romanNumeral = romanNumeralForChord(
@@ -459,7 +482,7 @@ export function HarmonicCircle({
                   x: position.x,
                   y: position.y,
                   label,
-                  familyName: referenceFamily.name,
+                  familyName: referenceName,
                   tones: toneNames.map((name) => ({ name, shared: false })),
                   sharedNames: [],
                   romanNumeral,
@@ -474,6 +497,7 @@ export function HarmonicCircle({
                 event.stopPropagation();
                 setSelected(null);
                 playChord(sector.referenceRootPc, referenceFamilyId, playbackStyle, "root");
+                onChordActivated?.(sector.referenceRootPc,referenceFamilyId,sectorIndex);
               }}
             >
               {label}
@@ -493,7 +517,7 @@ export function HarmonicCircle({
               const angle = (angleDegrees * Math.PI) / 180;
               const center = polar(cx, cy, layout.radius, angleDegrees);
               const labels = candidates.map((candidate) =>
-                chordLabel(candidate.rootPc, candidate.familyId, sectorIndex, showEnharmonics),
+                labelFor(candidate.rootPc,candidate.familyId,sectorIndex),
               );
 
               if (allFamiliesMode) {
@@ -600,18 +624,8 @@ export function HarmonicCircle({
         const sector = sectors[selected.sectorIndex];
         if (!sector) return null;
         const candidate = selected.candidate;
-        const referenceLabel = chordLabel(
-          sector.referenceRootPc,
-          referenceFamilyId,
-          selected.sectorIndex,
-          showEnharmonics,
-        );
-        const targetLabel = chordLabel(
-          candidate.rootPc,
-          candidate.familyId,
-          selected.sectorIndex,
-          showEnharmonics,
-        );
+        const referenceLabel = labelFor(sector.referenceRootPc,referenceFamilyId,selected.sectorIndex);
+        const targetLabel = labelFor(candidate.rootPc,candidate.familyId,selected.sectorIndex);
         const analysis = analyzeVoiceLeading(sector.referencePitches, candidate.pitchClasses);
         const sharedNames = candidate.pitchClasses
           .filter((pc) => analysis.sharedPitchClasses.includes(pc))
@@ -622,7 +636,7 @@ export function HarmonicCircle({
           sector.referenceRootPc,
           scaleId,
         );
-        const comparisonFont = Math.max(8.5, Math.min(fontSize * 0.72, holeRadius * 0.105));
+        const comparisonFont = Math.max(8.5, Math.min(fontSize * 0.72, centerHoleRadius * 0.15));
         const lineHeight = comparisonFont * 1.38;
         const lines = 4;
         const startY = cy - ((lines - 1) * lineHeight) / 2;
@@ -646,7 +660,7 @@ export function HarmonicCircle({
               fontSize={comparisonFont}
               className="comparison-roman"
             >
-              {romanNumeral ? `Roman numeral: ${romanNumeral}` : "Roman numeral: chromatic root"}
+              {`${t("app.roman")}: ${romanNumeral ?? t("app.chromaticRoot")}`}
             </text>
             <text
               x={cx}
@@ -657,7 +671,7 @@ export function HarmonicCircle({
               className="comparison-shared"
               fontWeight="750"
             >
-              {`Shared: ${sharedNames.length > 0 ? sharedNames.join(" · ") : "none"}`}
+              {`${t("app.shared")}: ${sharedNames.length > 0 ? sharedNames.join(" · ") : t("app.noneShared")}`}
             </text>
             <text
               x={cx}
@@ -667,7 +681,7 @@ export function HarmonicCircle({
               fontSize={comparisonFont * 0.92}
               className="comparison-motion"
             >
-              {voiceLeadingText(sector.referencePitches, candidate.pitchClasses, selected.sectorIndex)}
+              {voiceLeadingText(sector.referencePitches, candidate.pitchClasses, selected.sectorIndex,language)}
             </text>
           </g>
         );
@@ -677,86 +691,15 @@ export function HarmonicCircle({
 
       {showLegend && (
         <g className="legend" transform={`translate(${rightX}, ${legendY})`}>
-          <rect
-            x="0"
-            y="0"
-            width={rightColumnWidth}
-            height={legendBoxHeight}
-            fill="#ffffff"
-            stroke="#16191f"
-            strokeWidth={strokeWidth}
-          />
-
-          <text x="24" y="45" className="legend-heading" fontSize={legendFont} fontWeight="800">
-            Inner ring:
-          </text>
-          <text
-            x={legendContentX}
-            y="45"
-            className="legend-row"
-            fontSize={fittedSingleLineFontSize(legendFont, rightColumnWidth - legendContentX - 24, referenceFamily.name)}
-          >
-            {referenceFamily.name}
-          </text>
-
-          {counts.map((count, index) => {
-            const rowY = 45 + (index + 1) * legendRowHeight;
-            const familyText = allFamiliesMode
-              ? "Diatonic chords (all families)"
-              : `${diatonicOnly ? "Diatonic " : ""}${relatedFamilyName.toLowerCase()}`;
-            const familyFont = fittedSingleLineFontSize(
-              legendFont,
-              rightColumnWidth - legendContentX - 24,
-              familyText,
-            );
-            return (
-              <g key={`legend-${count}`}>
-                <text x="24" y={rowY} className="legend-heading" fontSize={legendFont} fontWeight="800">
-                  {`${ordinal(index + 2)} ring:`}
-                </text>
-                <text x={legendContentX} y={rowY} className="legend-row" fontSize={familyFont}>
-                  {familyText}
-                </text>
-                <text
-                  x={legendContentX}
-                  y={rowY + Math.max(18, legendFont * 1.18)}
-                  className="legend-row"
-                  fontSize={legendFont}
-                >
-                  {`sharing ${count} ${count === 1 ? "note" : "notes"}`}
-                </text>
-              </g>
-            );
-          })}
-
-          <text x="24" y={legendNoteY} className="legend-note" fontSize={legendNoteFont}>
-            {`Parent scale/mode: ${scale.name} (relative to each sector root).`}
-          </text>
-
-          {highlightDiatonic && !diatonicOnly && (
-            <text
-              x="24"
-              y={legendNoteY + legendNoteLineHeight}
-              className={colorByFamily ? "legend-note" : "legend-note diatonic-highlight"}
-              fontSize={legendNoteFont}
-              fontWeight="800"
-            >
-              {colorByFamily
-                ? "Bold/underlined labels are diatonic."
-                : "Blue labels are diatonic to the selected parent scale/mode."}
-            </text>
-          )}
-
-          {colorByFamily && (
-            <text
-              x="24"
-              y={legendNoteY + legendNoteLineHeight * (highlightDiatonic && !diatonicOnly ? 2 : 1)}
-              className="legend-note"
-              fontSize={legendNoteFont}
-            >
-              Colors indicate chord families; tooltips name them.
-            </text>
-          )}
+          <rect x="0" y="0" width={rightColumnWidth} height={legendBoxHeight}
+            fill="#ffffff" stroke="#16191f" strokeWidth={strokeWidth}/>
+          {legendRows.map((row,index)=><g key={`legend-row-${index}`}>
+            <text x="24" y={row.y} className="legend-heading" fontSize={fittedSingleLineFontSize(legendFont,legendContentX-42,row.heading)} fontWeight="800">{row.heading}</text>
+            {row.values.map((line,lineIndex)=><text key={`${index}-${lineIndex}`} x={legendContentX}
+              y={row.y+lineIndex*legendFont*1.21} className="legend-row" fontSize={legendFont}>{line}</text>)}
+          </g>)}
+          {legendNotes.map((line,index)=><text key={`legend-note-${index}`} x="24" y={legendNotesY+index*legendNoteLineHeight}
+            className="legend-note" fontSize={legendNoteFont}>{line}</text>)}
         </g>
       )}
 
@@ -772,7 +715,7 @@ export function HarmonicCircle({
             strokeWidth={strokeWidth}
           />
           <text x="24" y="35" className="explanation-heading" fontSize={fontSize} fontWeight="800">
-            Explanation
+            {t("app.explanationTitle")}
           </text>
           <text x="24" y="59" className="explanation-text" fontSize={explanationFont}>
             {explanationLines.map((line, index) => (
@@ -808,7 +751,7 @@ export function HarmonicCircle({
               <div className="tooltip-title">{tooltip.label}</div>
               <div className="tooltip-family">{tooltip.familyName}</div>
               <div className="tooltip-row">
-                <span className="tooltip-label">Tones:</span>{" "}
+                <span className="tooltip-label">{t("app.tones")}:</span>{" "}
                 {tooltip.tones.map((tone, index) => (
                   <span key={`${tone.name}-${index}`}>
                     <span className={tone.shared ? "shared-tone" : undefined}>{tone.name}</span>
@@ -818,21 +761,21 @@ export function HarmonicCircle({
               </div>
               {tooltip.sharedNames.length > 0 && (
                 <div className="tooltip-row">
-                  <span className="tooltip-label">Shared:</span>{" "}
+                  <span className="tooltip-label">{t("app.shared")}:</span>{" "}
                   <span className="shared-tone">{tooltip.sharedNames.join(" · ")}</span>
                 </div>
               )}
               <div className="tooltip-row">
-                <span className="tooltip-label">Roman numeral:</span>{" "}
-                {tooltip.romanNumeral ?? "chromatic root"}
+                <span className="tooltip-label">{t("app.roman")}:</span>{" "}
+                {tooltip.romanNumeral ?? t("app.chromaticRoot")}
               </div>
               <div className="tooltip-row">
-                <span className="tooltip-label">Parent relation:</span>{" "}
-                {tooltip.diatonic ? "diatonic" : "non-diatonic"}
+                <span className="tooltip-label">{t("app.parentRelation")}:</span>{" "}
+                {tooltip.diatonic ? t("app.diatonic") : t("app.chromatic")}
               </div>
               {tooltip.voiceLeadingText && (
                 <div className="tooltip-row">
-                  <span className="tooltip-label">Voice leading:</span>{" "}
+                  <span className="tooltip-label">{t("app.motion")}:</span>{" "}
                   {tooltip.voiceLeadingText}
                 </div>
               )}

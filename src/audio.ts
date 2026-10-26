@@ -1,3 +1,5 @@
+import type { RecordedEvent } from "./recording";
+import { recordedMidiNotes } from "./recording";
 import type { ChordFamilyId } from "./music";
 import { analyzeVoiceLeading, chordFamily, mod12, pitchClassesForChord } from "./music";
 
@@ -42,8 +44,7 @@ function nearestMidiForPc(pc: number, aroundMidi: number) {
   return best;
 }
 
-function smoothMidiNotes(reference: ReferenceChord, targetRootPc: number, targetFamilyId: ChordFamilyId) {
-  const referenceNotes = rootPositionMidiNotes(reference.rootPc, reference.familyId, 4);
+function smoothMidiFrom(referenceNotes: readonly number[], targetRootPc: number, targetFamilyId: ChordFamilyId) {
   const referencePcs = referenceNotes.map(mod12);
   const targetPcs = pitchClassesForChord(targetRootPc, targetFamilyId);
   const analysis = analyzeVoiceLeading(referencePcs, targetPcs);
@@ -63,6 +64,26 @@ function smoothMidiNotes(reference: ReferenceChord, targetRootPc: number, target
   analysis.addedPitchClasses.forEach((pc) => output.push(nearestMidiForPc(pc, centre)));
 
   return output.sort((a, b) => a - b);
+}
+
+function smoothMidiNotes(reference: ReferenceChord, targetRootPc: number, targetFamilyId: ChordFamilyId) {
+  return smoothMidiFrom(rootPositionMidiNotes(reference.rootPc, reference.familyId, 4), targetRootPc, targetFamilyId);
+}
+
+/** Playback pitches are illustrative; they do not replace pitch-class path scores or nominal notation. */
+export function sequencePlaybackNotes(events: readonly RecordedEvent[], voicing: VoicingStyle): number[][] {
+  let previousChord: number[] | null = null;
+  return events.map((event) => {
+    if (event.kind === "note") {
+      previousChord = null;
+      return recordedMidiNotes(event);
+    }
+    const notes: number[] = voicing === "smooth" && previousChord !== null
+      ? smoothMidiFrom(previousChord, event.rootPc, event.familyId)
+      : rootPositionMidiNotes(event.rootPc, event.familyId, 4);
+    previousChord = notes;
+    return notes;
+  });
 }
 
 function playVoice(context: AudioContext, midi: number, startAt: number, duration: number) {
@@ -136,8 +157,8 @@ export function playChord(
 
 /**
  * Audibly demonstrates voice leading by sounding the reference chord first and
- * then the related chord in its minimum-motion voicing. For block playback,
- * exact common MIDI tones are sustained through the change instead of being
+ * then the target chord in the selected root-position or nearby MIDI voicing.
+ * For block playback, exact common MIDI tones are sustained through the change instead of being
  * retriggered. Arpeggiated playback presents the two voicings sequentially.
  */
 export function playVoiceLeadingTransition(
@@ -145,10 +166,13 @@ export function playVoiceLeadingTransition(
   targetRootPc: number,
   targetFamilyId: ChordFamilyId,
   style: PlaybackStyle,
+  voicing: VoicingStyle = "smooth",
 ) {
   const context = getAudioContext();
   const referenceNotes = rootPositionMidiNotes(reference.rootPc, reference.familyId, 4);
-  const targetNotes = smoothMidiNotes(reference, targetRootPc, targetFamilyId);
+  const targetNotes = voicing === "smooth"
+    ? smoothMidiNotes(reference, targetRootPc, targetFamilyId)
+    : rootPositionMidiNotes(targetRootPc, targetFamilyId, 4);
   const now = context.currentTime + 0.015;
 
   if (style === "arpeggio") {
@@ -167,4 +191,20 @@ export function playVoiceLeadingTransition(
   targetNotes.forEach((midi) => {
     if (!sharedMidi.has(midi)) playVoice(context, midi, transitionAt, 0.9);
   });
+}
+
+/** Single-note events use the standalone synthesizer, not accordion samples. */
+export function playNote(pitchClass:number) {
+ const context=getAudioContext();
+ playVoice(context, 60+mod12(pitchClass), context.currentTime+0.015, 0.65);
+}
+/** Schedule the complete captured sequence in the shared Web Audio context. */
+export function playRecordedSequence(events:readonly RecordedEvent[], style:PlaybackStyle, voicing:VoicingStyle="root") {
+ if(!events.length) return;
+ const context=getAudioContext();
+ let start=context.currentTime+0.04;
+ for(const notes of sequencePlaybackNotes(events,voicing)) {
+  scheduleNotes(context,notes,style,start);
+  start+=style==="arpeggio" ? 0.18*Math.max(1,notes.length)+0.57 : 0.96;
+ }
 }

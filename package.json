@@ -1,14 +1,14 @@
 {
   "name": "harmonic-circle-explorer",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.6.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "tsx scripts/music.test.ts && tsx scripts/explanation.test.ts"
+    "test": "tsx scripts/settings-consistency.test.ts && tsx scripts/harmonic-tools.test.ts && tsx scripts/harmonic-tools-ui.test.ts && tsx scripts/music.test.ts && tsx scripts/explanation.test.ts && tsx scripts/localization.test.ts && tsx scripts/recording.test.ts && tsx scripts/features.test.ts && tsx scripts/navigation.test.ts"
   },
   "dependencies": {
     "abcjs": "^6.6.3",
