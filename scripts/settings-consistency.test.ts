@@ -30,7 +30,10 @@ const css=readFileSync(new URL("../src/App.css",import.meta.url),"utf8");
 const sections=app.slice(app.indexOf('{panel === "tools" ? <>'),app.indexOf('</> : panel === "settings" ? <>'));
 assert.doesNotMatch(sections,/nav\.relationships|nav\.diagramDisplay/,"No separate Relationships block or ring display in Tools");
 assert.match(sections,/nav\.relationshipDisplay/,"Relationship display is part of harmonic context");
-const settings=app.slice(app.indexOf('panel === "settings" ? <>'),app.indexOf('nav.preferences',app.indexOf('panel === "settings" ? <>'));
+const settings = app.slice(
+  app.indexOf('panel === "settings" ? <>'),
+  app.indexOf('nav.preferences', app.indexOf('panel === "settings" ? <>'))
+);
 assert.match(settings,/activeTool==="circle" && <>/,"Circle-only settings must be conditional");
 assert.match(settings,/nav\.diagramDisplay/,"Rings appear under Settings");
 assert.match(settings,/app\.diameter/,"Circle diameter remains available");
